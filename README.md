@@ -1,0 +1,1 @@
+# Trabalho 3 de Metaheurísticas: Problema de Sequenciamento de Máquinas Paralelas
