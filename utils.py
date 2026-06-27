@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from dataclasses import dataclass
 
 @dataclass
@@ -56,10 +58,73 @@ def carregar_instancia (arquivo: str) -> UPMSPInstance:
         matriz_setup=matriz_setups
     )
 
-if __name__ == "__main__":
-    arquivo_teste = "instances/50x4_U_1_100_S_49_rep_4.txt"
-    instancia = carregar_instancia(arquivo_teste)
+def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt - Escalonamento", salvar_em=None, mostrar_setup=True, mostrar_legenda_setup=True):
+    """
+        Plota a solução como um Gráfico de Gantt.
 
-    print(f"Jobs: {instancia.jobs} | Máquinas: {instancia.maquinas}")
-    print(f"Tempo do Job 0 na Máquina 1: {instancia.matriz_processamento[0][1]}")
-    print(f"Setup na Máquina 0 (Transição do Job 2 -> Job 5): {instancia.matriz_setup[0][2][5]}")
+        Cada linha do gráfico representa uma máquina; cada barra colorida
+        representa um job sendo processado (com o número do job dentro da
+        barra); blocos cinza-hachurados (opcional) representam o tempo de
+        setup gasto entre dois jobs consecutivos na mesma máquina.
+
+        :param solucao: lista de listas -- solucao[m] = sequência de jobs na máquina m
+        :param instancia: UPMSPInstance usada para obter os tempos de processamento/setup
+        :param titulo: título do gráfico
+        :param salvar_em: caminho de arquivo (ex.: "gantt.png") para salvar a figura, opcional
+        :param mostrar_setup: se True, desenha o tempo de setup como bloco hachurado
+        :param mostrar_legenda_setup: se True, mostra a legenda do bloco de setup
+        :return: (fig, ax) para customizações extras, se necessário
+        """
+
+    M = instancia.maquinas
+    fig, ax = plt.subplots(figsize=(12, 0.6 * M + 2))
+    cmap = plt.get_cmap("tab20")
+    cores_job = {}
+    makespan_total = 0.0
+
+    for maquina in range(M):
+        jobs_na_maquina = solucao[maquina]
+        tempo_atual = 0.0
+
+        for i, job in enumerate(jobs_na_maquina):
+            if job not in cores_job:
+                cores_job[job] = cmap(len(cores_job) % 20)
+
+            if i > 0 and mostrar_setup:
+                job_anterior = jobs_na_maquina[i - 1]
+                setup = instancia.matriz_setup[maquina][job_anterior][job]
+                if setup > 0:
+                    ax.barh(maquina, setup, left=tempo_atual, height=0.6,
+                            color='lightgray', edgecolor='black', hatch='//', zorder=2)
+                    tempo_atual += setup
+
+            proc = instancia.matriz_processamento[job][maquina]
+            ax.barh(maquina, proc, left=tempo_atual, height=0.6,
+                    color=cores_job[job], edgecolor='black', zorder=2)
+            ax.text(tempo_atual + proc / 2, maquina, f"J{job}",
+                    ha='center', va='center', fontsize=8, fontweight='bold', zorder=3)
+            tempo_atual += proc
+
+        makespan_total = max(makespan_total, tempo_atual)
+
+    ax.axvline(makespan_total, color='red', linestyle='--', linewidth=1.2, zorder=1)
+    ax.text(makespan_total, M - 0.4, f'  Makespan = {makespan_total:.0f}',
+            color='red',va='top', fontsize=9)
+    ax.set_yticks(range(M))
+    ax.set_yticklabels([f"Máquina {m}" for m in range(M)])
+    ax.set_xlabel('Tempo')
+    ax.set_title(titulo)
+    ax.invert_yaxis()
+    ax.grid(axis='x', linestyle='--', alpha=0.4, zorder=0)
+
+    if mostrar_setup and mostrar_legenda_setup:
+        setup_patch = mpatches.Patch(facecolor='lightgray', edgecolor='black', hatch='//', label='Setup')
+        ax.legend(handles=[setup_patch], loc='lower right')
+
+    plt.tight_layout()
+    if salvar_em:
+        plt.savefig(salvar_em, dpi=300)
+        print(f"Gráfico salvo em: {salvar_em}")
+
+    plt.show()
+    return fig, ax

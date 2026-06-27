@@ -1,8 +1,9 @@
-import numpy as np
-import random
-import math
 import copy
-from utils import UPMSPInstance, carregar_instancia
+import math
+import random
+import numpy as np
+from utils import UPMSPInstance
+
 """
 Representação da solução:
 solucao = [[0, 2], [1, 3, 4], [], []]
@@ -164,10 +165,3 @@ def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfr
         T = T * taxa_resfriamento
 
     return melhor_solucao, melhor_makespan
-
-if __name__ == "__main__":
-    instance = carregar_instancia("instances/50x4_U_1_100_S_49_rep_1.txt")
-    melhor_solucao, makespan_final = simulated_annealing(instance, temp_inicial=3000, iteracoes_por_temp=500)
-    print(f"Melhor makespan: {makespan_final}\n")
-    print("Melhor solucao:\n")
-    print(melhor_solucao)
