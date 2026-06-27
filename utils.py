@@ -14,11 +14,8 @@ def carregar_instancia (arquivo: str) -> UPMSPInstance:
 
     # Cabeçalho
     header_tokens = linhas[0].split()
-    print(header_tokens)
     jobs = int(header_tokens[0])
-    print(jobs)
     machines = int(header_tokens[1])
-    print(machines)
 
     linha_atual = 2
 
