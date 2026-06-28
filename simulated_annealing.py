@@ -3,7 +3,7 @@ import math
 import random
 import time
 import numpy as np
-from utils import UPMSPInstance, carregar_instancia, plotar_gantt, plotar_convergencia_simulated_annealing
+from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas, calcular_makespan
 
 """
 Representação da solução:
@@ -26,41 +26,6 @@ def gerar_solucao_inicial (instancia: UPMSPInstance):
         solucao[maquina_escolhida].append(job)
 
     return solucao
-
-def calcular_tempo_maquina (jobs_na_maquina, maquina, instancia: UPMSPInstance):
-    """
-    Calcula o tempo (processamento + setup) de uma única máquina.
-    """
-    if not jobs_na_maquina:
-        return 0.0
-
-    primeiro_job = jobs_na_maquina[0]
-    tempo = instancia.matriz_processamento[primeiro_job][maquina]
-    for i in range(1, len(jobs_na_maquina)):
-        job_anterior = jobs_na_maquina[i - 1]
-        job_atual = jobs_na_maquina[i]
-        tempo += instancia.matriz_setup[maquina][job_anterior][job_atual]
-        tempo += instancia.matriz_processamento[job_atual][maquina]
-
-    return tempo
-
-def calcular_tempos_maquinas (solucao, instancia: UPMSPInstance):
-    """
-    Calcula o vetor de tempos de todas as máquinas do zero.
-    """
-    tempos = np.zeros(instancia.maquinas)
-    for maquina in range(instancia.maquinas):
-        tempos[maquina] = calcular_tempo_maquina(solucao[maquina], maquina, instancia)
-    return tempos
-
-
-def calcular_makespan (solucao, instancia: UPMSPInstance):
-    """
-    Calcula o tempo total de cada máquina e retorna
-    o maior valor (makespan).
-    """
-    tempos_maquinas = calcular_tempos_maquinas(solucao, instancia)
-    return np.max(tempos_maquinas)
 
 def gerar_vizinho (solucao_atual, tempos_atuais, instancia: UPMSPInstance, taxa=0.7):
     """
@@ -199,18 +164,3 @@ def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfr
     print(f"Simulated Annealing finalizado ({motivo_parada}) --"
           f"{iteracao_global} iterações em {time.time() - inicio:.1f}s")
     return melhor_solucao, melhor_makespan, historico
-
-if __name__ == "__main__":
-    instance = carregar_instancia("instances/200x8_U_1_100_S_49_rep_5.txt")
-    melhor_solucao, makespan_final, historico = simulated_annealing(
-        instance,
-        temp_inicial=3000,
-        iteracoes_por_temp=500,
-        tempo_limite_segundos=300
-    )
-    print(f"Melhor makespan: {makespan_final}\n")
-    print("Melhor solucao:\n")
-    print(melhor_solucao)
-
-    plotar_gantt(melhor_solucao, instance, titulo=f"Melhor solução: {makespan_final:.2f}")
-    plotar_convergencia_simulated_annealing(historico, titulo="Convergência")
