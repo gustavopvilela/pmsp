@@ -3,7 +3,7 @@ import math
 import random
 import time
 import numpy as np
-from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas, calcular_makespan
+from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas
 
 """
 Representação da solução:
@@ -30,6 +30,7 @@ def gerar_solucao_inicial (instancia: UPMSPInstance):
 def gerar_vizinho (solucao_atual, tempos_atuais, instancia: UPMSPInstance, taxa=0.7):
     """
     Gera um vizinho com viés heurístico.
+    :param tempos_atuais: vetor de makespan de cada máquina
     :param instancia: classe UPMSPInstance da instância atual
     :param solucao_atual: solução atual do sistema
     :param taxa: 0.0 (busca cega total) até 1.0 (100% guloso focado em melhora)
