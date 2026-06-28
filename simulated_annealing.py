@@ -1,8 +1,9 @@
 import copy
 import math
 import random
+import time
 import numpy as np
-from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas, calcular_makespan
+from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas
 
 """
 Representação da solução:
@@ -29,6 +30,7 @@ def gerar_solucao_inicial (instancia: UPMSPInstance):
 def gerar_vizinho (solucao_atual, tempos_atuais, instancia: UPMSPInstance, taxa=0.7):
     """
     Gera um vizinho com viés heurístico.
+    :param tempos_atuais: vetor de makespan de cada máquina
     :param instancia: classe UPMSPInstance da instância atual
     :param solucao_atual: solução atual do sistema
     :param taxa: 0.0 (busca cega total) até 1.0 (100% guloso focado em melhora)
@@ -91,7 +93,7 @@ def atualizar_tempos (tempos_atuais, vizinho, maquinas_afetadas, instancia: UPMS
         tempos_vizinho[maquina] = calcular_tempo_maquina(vizinho[maquina], maquina, instancia)
     return tempos_vizinho
 
-def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfriamento=0.99, iteracoes_por_temp=100):
+def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfriamento=0.99, iteracoes_por_temp=100, tempo_limite_segundos=None, max_iteracoes_sem_melhora=None):
     solucao_atual = gerar_solucao_inicial(instancia)
     tempos_atuais = calcular_tempos_maquinas(solucao_atual, instancia)
     makespan_atual = np.max(tempos_atuais)
@@ -101,12 +103,26 @@ def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfr
     T = temp_inicial
     T_final = 1.0
 
-    while T > T_final:
+    historico = {
+        'iteracao': [],
+        'temperatura': [],
+        'makespan_atual': [],
+        'melhor_makespan': [],
+    }
+    iteracao_global = 0
+    iteracoes_sem_melhora = 0
+    inicio = time.time()
+    motivo_parada = "temperatura mínima atingida"
+    parar_busca = False
+
+    while T > T_final and not parar_busca:
         for _ in range(iteracoes_por_temp):
+            iteracao_global += 1
             vizinho, maquinas_afetadas = gerar_vizinho(solucao_atual, tempos_atuais, instancia, taxa=0.7)
             if not maquinas_afetadas: # Movimento não foi possível
                 continue
 
+            melhorou = False
             tempos_vizinho = atualizar_tempos(tempos_atuais, vizinho, maquinas_afetadas, instancia)
             makespan_vizinho = np.max(tempos_vizinho)
             delta = makespan_vizinho - makespan_atual
@@ -119,6 +135,7 @@ def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfr
                 if makespan_atual < melhor_makespan:
                     melhor_makespan = makespan_atual
                     melhor_solucao = copy.deepcopy(solucao_atual)
+                    melhorou = True
 
             else:
                 probabilidade = math.exp(-delta / T)
@@ -127,6 +144,24 @@ def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfr
                     makespan_atual = makespan_vizinho
                     tempos_atuais = tempos_vizinho
 
+            iteracoes_sem_melhora = 0 if melhorou else iteracoes_sem_melhora + 1
+            historico['iteracao'].append(iteracao_global)
+            historico['temperatura'].append(T)
+            historico['makespan_atual'].append(makespan_atual)
+            historico['melhor_makespan'].append(melhor_makespan)
+
+            if tempo_limite_segundos is not None and (time.time() - inicio) >= tempo_limite_segundos:
+                motivo_parada = f"tempo limite de {tempo_limite_segundos}s atingido"
+                parar_busca = True
+                break
+
+            if max_iteracoes_sem_melhora is not None and iteracoes_sem_melhora >= max_iteracoes_sem_melhora:
+                motivo_parada = f"sem melhora por {max_iteracoes_sem_melhora} iterações consecutivas"
+                parar_busca = True
+                break
+
         T = T * taxa_resfriamento
 
-    return melhor_solucao, melhor_makespan
+    print(f"Simulated Annealing finalizado ({motivo_parada}) --"
+          f"{iteracao_global} iterações em {time.time() - inicio:.1f}s")
+    return melhor_solucao, melhor_makespan, historico

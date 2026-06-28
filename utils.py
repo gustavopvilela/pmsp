@@ -111,7 +111,7 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
         """
 
     M = instancia.maquinas
-    fig, ax = plt.subplots(figsize=(12, 0.6 * M + 2))
+    fig, ax = plt.subplots(figsize=(24, 1.2 * M + 4))
     cmap = plt.get_cmap("tab20")
     cores_job = {}
     makespan_total = 0.0
@@ -159,6 +159,53 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
     if salvar_em:
         plt.savefig(salvar_em, dpi=300)
         print(f"Gráfico salvo em: {salvar_em}")
+
+    plt.show()
+    return fig, ax
+
+def plotar_convergencia_simulated_annealing (historico, titulo="Convergência do Simulated Annealing", salvar_em=None, mostrar_temperatura=True):
+    """
+        Plota a evolução do makespan ao longo das iterações do Simulated
+        Annealing: a curva "atual" mostra a exploração (incluindo pioras
+        temporariamente aceitas), e a curva "melhor encontrado" mostra o
+        progresso real da otimização. Opcionalmente, sobrepõe a curva de
+        resfriamento da temperatura em um eixo secundário (escala log).
+
+        :param historico: dict retornado por
+                           simulated_annealing(..., retornar_historico=True),
+                           contendo as chaves 'iteracao', 'temperatura',
+                           'makespan_atual' e 'melhor_makespan'
+        :param titulo: título do gráfico
+        :param salvar_em: caminho de arquivo (ex.: "convergencia.png") para salvar a figura, opcional
+        :param mostrar_temperatura: se True, mostra a curva de temperatura em um eixo secundário
+        :return: (fig, ax) para customizações extras, se necessário
+        """
+    fig, ax = plt.subplots(figsize=(22, 10))
+    ax.plot(historico['iteracao'], historico['makespan_atual'], color='cadetblue', linewidth=0.9, alpha=0.7, label='Makespan atual', zorder=2)
+    ax.step(historico['iteracao'], historico['melhor_makespan'], color='darkblue', linewidth=1.8, where='post', label='Melhor makespan encontrado', zorder=3)
+
+    ax.set_xlabel('Iteração')
+    ax.set_ylabel('Makespan')
+    ax.set_title(titulo)
+    ax.grid(linestyle='--', alpha=0.4, zorder=0)
+
+    if mostrar_temperatura:
+        ax2 = ax.twinx()
+        ax2.plot(historico['iteracao'], historico['temperatura'], color='firebrick', linewidth=1.5, linestyle='--', alpha=0.8, label='Temperatura', zorder=1)
+        ax2.set_ylabel('Temperatura (escala log)', color='firebrick')
+        ax2.set_yscale('log')
+        ax2.tick_params(axis='y', labelcolor='firebrick')
+
+        linhas1, rotulos1 = ax.get_legend_handles_labels()
+        linhas2, rotulos2 = ax2.get_legend_handles_labels()
+        ax.legend(linhas1 + linhas2, rotulos1 + rotulos2, loc='upper right')
+    else:
+        ax.legend(loc='upper right')
+
+    plt.tight_layout()
+    if salvar_em:
+        plt.savefig(salvar_em, dpi=300)
+        print(f"Gráfico de convergência do Simulated Annealing salvo em: {salvar_em}")
 
     plt.show()
     return fig, ax
