@@ -3,7 +3,9 @@ import math
 import random
 import time
 import numpy as np
-from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas
+from grasp_pathrelinking import construcao_gulosa
+from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas, carregar_instancia, plotar_gantt, \
+    plotar_convergencia_simulated_annealing
 
 """
 Representação da solução:
@@ -12,20 +14,7 @@ A máquina 0 executa os jobs 0 e 2, as máquinas 2 e 3 estão ociosas
 """
 
 def gerar_solucao_inicial (instancia: UPMSPInstance):
-    """
-    Gera uma solução inicial aleatória distribuindo
-    todos os jobs pelas máquinas disponíveis.
-    """
-    solucao = [[] for _ in range(instancia.maquinas)]
-
-    jobs = list(range(instancia.jobs))
-    random.shuffle(jobs)
-
-    for job in jobs:
-        maquina_escolhida = random.randint(0, instancia.maquinas - 1)
-        solucao[maquina_escolhida].append(job)
-
-    return solucao
+    return construcao_gulosa(instancia)
 
 def gerar_vizinho (solucao_atual, tempos_atuais, instancia: UPMSPInstance, taxa=0.7):
     """
@@ -44,7 +33,6 @@ def gerar_vizinho (solucao_atual, tempos_atuais, instancia: UPMSPInstance, taxa=
 
     tipo_movimento = random.choice(["shift", "swap"])
     usar_inteligencia = random.random() < taxa
-    print(f"Tipo Movimento: {tipo_movimento} {"inteligente" if usar_inteligencia else "normal"}")
     maquinas_afetadas = set()
 
     if tipo_movimento == "shift":
@@ -165,3 +153,20 @@ def simulated_annealing (instancia: UPMSPInstance, temp_inicial=1000, taxa_resfr
     print(f"Simulated Annealing finalizado ({motivo_parada}) --"
           f"{iteracao_global} iterações em {time.time() - inicio:.1f}s")
     return melhor_solucao, melhor_makespan, historico
+
+if __name__ == "__main__":
+    instance = carregar_instancia("instances/200x8_U_1_100_S_49_rep_3.txt")
+    solucao, makespan, historico = simulated_annealing(
+        instancia=instance,
+        temp_inicial=5000,
+        iteracoes_por_temp=500,
+        tempo_limite_segundos=300
+    )
+    plotar_gantt(
+        solucao=solucao,
+        instancia=instance,
+        titulo=f"Gráfico de Gantt - Makespan {makespan:.2f}"
+    )
+    plotar_convergencia_simulated_annealing(
+        historico=historico
+    )

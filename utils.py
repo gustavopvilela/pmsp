@@ -92,7 +92,7 @@ def calcular_makespan(solucao, instancia: UPMSPInstance):
     tempos_maquinas = calcular_tempos_maquinas(solucao, instancia)
     return np.max(tempos_maquinas)
 
-def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt - Escalonamento", salvar_em=None, mostrar_setup=True, mostrar_legenda_setup=True):
+def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt - Escalonamento", salvar_em=None, mostrar_setup=True, mostrar_legenda_setup=True, mostrar=True):
     """
         Plota a solução como um Gráfico de Gantt.
 
@@ -101,6 +101,7 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
         barra); blocos cinza-hachurados (opcional) representam o tempo de
         setup gasto entre dois jobs consecutivos na mesma máquina.
 
+        :param mostrar: abre ou não a janela de visualização do Matplotlib
         :param solucao: lista de listas -- solucao[m] = sequência de jobs na máquina m
         :param instancia: UPMSPInstance usada para obter os tempos de processamento/setup
         :param titulo: título do gráfico
@@ -160,10 +161,13 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
         plt.savefig(salvar_em, dpi=300)
         print(f"Gráfico salvo em: {salvar_em}")
 
-    plt.show()
+    if mostrar:
+        plt.show()
+    else:
+        plt.close(fig)
     return fig, ax
 
-def plotar_convergencia_simulated_annealing (historico, titulo="Convergência do Simulated Annealing", salvar_em=None, mostrar_temperatura=True):
+def plotar_convergencia_simulated_annealing (historico, titulo="Convergência do Simulated Annealing", salvar_em=None, mostrar_temperatura=True, mostrar=False):
     """
         Plota a evolução do makespan ao longo das iterações do Simulated
         Annealing: a curva "atual" mostra a exploração (incluindo pioras
@@ -171,6 +175,7 @@ def plotar_convergencia_simulated_annealing (historico, titulo="Convergência do
         progresso real da otimização. Opcionalmente, sobrepõe a curva de
         resfriamento da temperatura em um eixo secundário (escala log).
 
+        :param mostrar: abre ou não a janela de visualização do Matplotlib
         :param historico: dict retornado por
                            simulated_annealing(..., retornar_historico=True),
                            contendo as chaves 'iteracao', 'temperatura',
@@ -207,5 +212,8 @@ def plotar_convergencia_simulated_annealing (historico, titulo="Convergência do
         plt.savefig(salvar_em, dpi=300)
         print(f"Gráfico de convergência do Simulated Annealing salvo em: {salvar_em}")
 
-    plt.show()
+    if mostrar:
+        plt.show()
+    else:
+        plt.close(fig)
     return fig, ax
