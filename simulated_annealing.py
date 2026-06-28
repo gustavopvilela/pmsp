@@ -2,7 +2,7 @@ import copy
 import math
 import random
 import numpy as np
-from utils import UPMSPInstance
+from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas, calcular_makespan
 
 """
 Representação da solução:
@@ -25,41 +25,6 @@ def gerar_solucao_inicial (instancia: UPMSPInstance):
         solucao[maquina_escolhida].append(job)
 
     return solucao
-
-def calcular_tempo_maquina (jobs_na_maquina, maquina, instancia: UPMSPInstance):
-    """
-    Calcula o tempo (processamento + setup) de uma única máquina.
-    """
-    if not jobs_na_maquina:
-        return 0.0
-
-    primeiro_job = jobs_na_maquina[0]
-    tempo = instancia.matriz_processamento[primeiro_job][maquina]
-    for i in range(1, len(jobs_na_maquina)):
-        job_anterior = jobs_na_maquina[i - 1]
-        job_atual = jobs_na_maquina[i]
-        tempo += instancia.matriz_setup[maquina][job_anterior][job_atual]
-        tempo += instancia.matriz_processamento[job_atual][maquina]
-
-    return tempo
-
-def calcular_tempos_maquinas (solucao, instancia: UPMSPInstance):
-    """
-    Calcula o vetor de tempos de todas as máquinas do zero.
-    """
-    tempos = np.zeros(instancia.maquinas)
-    for maquina in range(instancia.maquinas):
-        tempos[maquina] = calcular_tempo_maquina(solucao[maquina], maquina, instancia)
-    return tempos
-
-
-def calcular_makespan (solucao, instancia: UPMSPInstance):
-    """
-    Calcula o tempo total de cada máquina e retorna
-    o maior valor (makespan).
-    """
-    tempos_maquinas = calcular_tempos_maquinas(solucao, instancia)
-    return np.max(tempos_maquinas)
 
 def gerar_vizinho (solucao_atual, tempos_atuais, instancia: UPMSPInstance, taxa=0.7):
     """
