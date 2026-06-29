@@ -58,7 +58,41 @@ def carregar_instancia (arquivo: str) -> UPMSPInstance:
         matriz_setup=matriz_setups
     )
 
-def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt - Escalonamento", salvar_em=None, mostrar_setup=True, mostrar_legenda_setup=True):
+
+def calcular_tempo_maquina(jobs_na_maquina, maquina, instancia: UPMSPInstance):
+    """
+    Calcula o tempo (processamento + setup) de uma única máquina.
+    """
+    if not jobs_na_maquina:
+        return 0.0
+
+    primeiro_job = jobs_na_maquina[0]
+    tempo = instancia.matriz_processamento[primeiro_job][maquina]
+    for i in range(1, len(jobs_na_maquina)):
+        job_anterior = jobs_na_maquina[i - 1]
+        job_atual = jobs_na_maquina[i]
+        tempo += instancia.matriz_setup[maquina][job_anterior][job_atual]
+        tempo += instancia.matriz_processamento[job_atual][maquina]
+
+    return tempo
+
+def calcular_tempos_maquinas(solucao, instancia: UPMSPInstance):
+    """
+    Calcula o vetor de tempos de todas as máquinas.
+    """
+    tempos = np.zeros(instancia.maquinas)
+    for maquina in range(instancia.maquinas):
+        tempos[maquina] = calcular_tempo_maquina(solucao[maquina], maquina, instancia)
+    return tempos
+
+def calcular_makespan(solucao, instancia: UPMSPInstance):
+    """
+    Calcula o tempo total de cada máquina e retorna o maior valor (makespan).
+    """
+    tempos_maquinas = calcular_tempos_maquinas(solucao, instancia)
+    return np.max(tempos_maquinas)
+
+def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt - Escalonamento", salvar_em=None, mostrar_setup=True, mostrar_legenda_setup=True, mostrar=True):
     """
         Plota a solução como um Gráfico de Gantt.
 
@@ -67,6 +101,7 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
         barra); blocos cinza-hachurados (opcional) representam o tempo de
         setup gasto entre dois jobs consecutivos na mesma máquina.
 
+        :param mostrar: abre ou não a janela de visualização do Matplotlib
         :param solucao: lista de listas -- solucao[m] = sequência de jobs na máquina m
         :param instancia: UPMSPInstance usada para obter os tempos de processamento/setup
         :param titulo: título do gráfico
@@ -77,7 +112,7 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
         """
 
     M = instancia.maquinas
-    fig, ax = plt.subplots(figsize=(12, 0.6 * M + 2))
+    fig, ax = plt.subplots(figsize=(24, 1.2 * M + 4))
     cmap = plt.get_cmap("tab20")
     cores_job = {}
     makespan_total = 0.0
@@ -126,5 +161,59 @@ def plotar_gantt (solucao, instancia: UPMSPInstance, titulo="Gráfico de Gantt -
         plt.savefig(salvar_em, dpi=300)
         print(f"Gráfico salvo em: {salvar_em}")
 
-    plt.show()
+    if mostrar:
+        plt.show()
+    else:
+        plt.close(fig)
+    return fig, ax
+
+def plotar_convergencia_simulated_annealing (historico, titulo="Convergência do Simulated Annealing", salvar_em=None, mostrar_temperatura=True, mostrar=False):
+    """
+        Plota a evolução do makespan ao longo das iterações do Simulated
+        Annealing: a curva "atual" mostra a exploração (incluindo pioras
+        temporariamente aceitas), e a curva "melhor encontrado" mostra o
+        progresso real da otimização. Opcionalmente, sobrepõe a curva de
+        resfriamento da temperatura em um eixo secundário (escala log).
+
+        :param mostrar: abre ou não a janela de visualização do Matplotlib
+        :param historico: dict retornado por
+                           simulated_annealing(..., retornar_historico=True),
+                           contendo as chaves 'iteracao', 'temperatura',
+                           'makespan_atual' e 'melhor_makespan'
+        :param titulo: título do gráfico
+        :param salvar_em: caminho de arquivo (ex.: "convergencia.png") para salvar a figura, opcional
+        :param mostrar_temperatura: se True, mostra a curva de temperatura em um eixo secundário
+        :return: (fig, ax) para customizações extras, se necessário
+        """
+    fig, ax = plt.subplots(figsize=(22, 10))
+    ax.plot(historico['iteracao'], historico['makespan_atual'], color='cadetblue', linewidth=0.9, alpha=0.7, label='Makespan atual', zorder=2)
+    ax.step(historico['iteracao'], historico['melhor_makespan'], color='darkblue', linewidth=1.8, where='post', label='Melhor makespan encontrado', zorder=3)
+
+    ax.set_xlabel('Iteração')
+    ax.set_ylabel('Makespan')
+    ax.set_title(titulo)
+    ax.grid(linestyle='--', alpha=0.4, zorder=0)
+
+    if mostrar_temperatura:
+        ax2 = ax.twinx()
+        ax2.plot(historico['iteracao'], historico['temperatura'], color='firebrick', linewidth=1.5, linestyle='--', alpha=0.8, label='Temperatura', zorder=1)
+        ax2.set_ylabel('Temperatura (escala log)', color='firebrick')
+        ax2.set_yscale('log')
+        ax2.tick_params(axis='y', labelcolor='firebrick')
+
+        linhas1, rotulos1 = ax.get_legend_handles_labels()
+        linhas2, rotulos2 = ax2.get_legend_handles_labels()
+        ax.legend(linhas1 + linhas2, rotulos1 + rotulos2, loc='upper right')
+    else:
+        ax.legend(loc='upper right')
+
+    plt.tight_layout()
+    if salvar_em:
+        plt.savefig(salvar_em, dpi=300)
+        print(f"Gráfico de convergência do Simulated Annealing salvo em: {salvar_em}")
+
+    if mostrar:
+        plt.show()
+    else:
+        plt.close(fig)
     return fig, ax
