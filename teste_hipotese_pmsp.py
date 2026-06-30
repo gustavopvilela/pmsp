@@ -4,7 +4,7 @@ from scipy import stats
 
 
 def comparar_duas_metaheuristicas(gaps_m1, gaps_m2, nome_m1, nome_m2):
-    # Realiza o Teste de Wilcoxon Signed-Rank
+    #realiza o Teste de Wilcoxon Signed-Rank
     stat, p_value = stats.wilcoxon(gaps_m1, gaps_m2)
 
     media_m1 = np.mean(gaps_m1)
