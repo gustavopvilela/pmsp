@@ -1,33 +1,73 @@
-import copy
 import random
 import numpy as np
 from utils import UPMSPInstance, calcular_tempo_maquina, calcular_tempos_maquinas, calcular_makespan
 
 
-def recalcular_makespan_delta(tempos_atuais, maquina_alterada, nova_sequencia, instancia: UPMSPInstance):
-    """
-    Recalcula apenas o tempo da máquina afetada e retorna o novo makespan,
-    poupando processamento de matrizes inteiras.
-    """
-    novo_tempo = calcular_tempo_maquina(nova_sequencia, maquina_alterada, instancia)
-    tempos_simulados = tempos_atuais.copy()
-    tempos_simulados[maquina_alterada] = novo_tempo
-    return np.max(tempos_simulados), tempos_simulados
+def calcular_delta_insercao(job, m, pos, seq_m, instancia: UPMSPInstance):
+    """Calcula em O(1) a variação de tempo ao inserir 'job' na máquina 'm' na posição 'pos'."""
+    P = instancia.matriz_processamento
+    S = instancia.matriz_setup
+
+    delta = P[job][m]
+    n = len(seq_m)
+
+    if n == 0:
+        return delta
+
+    if pos == 0:
+        return delta + S[m][job][seq_m[0]]
+
+    if pos == n:
+        return delta + S[m][seq_m[-1]][job]
+
+    # Inserção no meio de dois jobs
+    A = seq_m[pos - 1]
+    B = seq_m[pos]
+    delta += -S[m][A][B] + S[m][A][job] + S[m][job][B]
+
+    return delta
 
 
-def obter_maquina_do_job(solucao, job):
-    """Função auxiliar para encontrar em qual máquina um job está."""
+def calcular_delta_remocao(pos, seq_m, m, instancia: UPMSPInstance):
+    """Calcula em O(1) a variação de tempo ao remover o job da posição 'pos' da máquina 'm'."""
+    P = instancia.matriz_processamento
+    S = instancia.matriz_setup
+    n = len(seq_m)
+    job = seq_m[pos]
+
+    delta = -P[job][m]
+
+    if n == 1:
+        return delta
+
+    if pos == 0:
+        return delta - S[m][job][seq_m[1]]
+
+    if pos == n - 1:
+        return delta - S[m][seq_m[-2]][job]
+
+    # Remoção do meio de dois jobs
+    A = seq_m[pos - 1]
+    B = seq_m[pos + 1]
+    delta += -S[m][A][job] - S[m][job][B] + S[m][A][B]
+
+    return delta
+
+
+def criar_mapa_jobs(solucao, num_jobs):
+    """Cria um array O(1) para consultar em qual máquina o job está alocado."""
+    mapa = np.zeros(num_jobs, dtype=int)
     for m, jobs in enumerate(solucao):
-        if job in jobs:
-            return m
-    return -1
+        for job in jobs:
+            mapa[job] = m
+    return mapa
 
 
 def construcao_gulosa(instancia: UPMSPInstance, alpha=0.3):
     solucao = [[] for _ in range(instancia.maquinas)]
     tempos = np.zeros(instancia.maquinas)
 
-    jobs_nao_alocados = list(range(instancia.jobs))  # nosso conjunto candidato
+    jobs_nao_alocados = list(range(instancia.jobs)) # nosso conjunto candidato
     random.shuffle(jobs_nao_alocados)
 
     for job in jobs_nao_alocados:
@@ -35,35 +75,33 @@ def construcao_gulosa(instancia: UPMSPInstance, alpha=0.3):
         # avalia o custo de inserir cada job em todas as posições
         for m in range(instancia.maquinas):
             for pos in range(len(solucao[m]) + 1):
-                sol_temp = copy.copy(solucao[m])
-                sol_temp.insert(pos, job)
+                aumento = calcular_delta_insercao(job, m, pos, solucao[m], instancia)
 
-                mk_vizinho, _ = recalcular_makespan_delta(tempos, m, sol_temp, instancia)
-                custos.append((m, pos, mk_vizinho))
+                # Simula o makespan localmente
+                tempos_simulados = tempos.copy()
+                tempos_simulados[m] += aumento
+                mk_vizinho = np.max(tempos_simulados)
+
+                custos.append((m, pos, mk_vizinho, aumento))
 
         c_min = min(custos, key=lambda x: x[2])[2]
         c_max = max(custos, key=lambda x: x[2])[2]
-
         limite = c_min + alpha * (c_max - c_min) + 1e-5
 
-        # rcl so com as melhores insercoes
-        rcl = [(m, pos, mk) for m, pos, mk in custos if mk <= limite]
-
-        if not rcl:
-            rcl = [(m, pos, mk) for m, pos, mk in custos if mk == c_min]
+        rcl = [(m, pos, mk, aum) for m, pos, mk, aum in custos if mk <= limite]
         if not rcl:
             rcl = [custos[0]]
 
-        m_escolhida, pos_escolhida, novo_mk = random.choice(rcl)
+        m_escolhida, pos_escolhida, novo_mk, aumento_escolhido = random.choice(rcl)
 
         solucao[m_escolhida].insert(pos_escolhida, job)
-        tempos[m_escolhida] = calcular_tempo_maquina(solucao[m_escolhida], m_escolhida, instancia)
+        tempos[m_escolhida] += aumento_escolhido
 
     return solucao
 
 
 def busca_local_avancada(solucao, instancia: UPMSPInstance):
-    sol_atual = copy.deepcopy(solucao)
+    sol_atual = [lista[:] for lista in solucao]
     tempos = calcular_tempos_maquinas(sol_atual, instancia)
     mk_atual = np.max(tempos)
     melhorou = True
@@ -75,49 +113,50 @@ def busca_local_avancada(solucao, instancia: UPMSPInstance):
         if not sol_atual[maquina_gargalo]:
             break
 
-        for i, job in enumerate(sol_atual[maquina_gargalo]):
-            # tenta melhorar fazendo movimento intramaquina
-            for pos in range(len(sol_atual[maquina_gargalo])):
+        seq_gargalo = sol_atual[maquina_gargalo]
+
+        for i, job in enumerate(seq_gargalo):
+            # Shift (Intramaquina)
+            for pos in range(len(seq_gargalo)):
                 if i == pos: continue
 
-                sol_viz = copy.copy(sol_atual[maquina_gargalo])
+                sol_viz = seq_gargalo[:]
                 sol_viz.pop(i)
                 sol_viz.insert(pos, job)
 
-                mk_viz, novos_tempos = recalcular_makespan_delta(tempos, maquina_gargalo, sol_viz, instancia)
+                tempo_novo = calcular_tempo_maquina(sol_viz, maquina_gargalo, instancia)
+                if tempo_novo < tempos[maquina_gargalo]:
+                    tempos_temp = tempos.copy()
+                    tempos_temp[maquina_gargalo] = tempo_novo
+                    mk_viz = np.max(tempos_temp)
 
-                if mk_viz < mk_atual:
-                    sol_atual[maquina_gargalo] = sol_viz
-                    tempos = novos_tempos
-                    mk_atual = mk_viz
-                    melhorou = True
-                    break
+                    if mk_viz < mk_atual:
+                        sol_atual[maquina_gargalo] = sol_viz
+                        tempos = tempos_temp
+                        mk_atual = mk_viz
+                        melhorou = True
+                        break
             if melhorou: break
 
-            # tenta melhorar fazendo movimento intermaquina
+            # Relocate (Intermáquina)
+            delta_rem = calcular_delta_remocao(i, seq_gargalo, maquina_gargalo, instancia)
+
             for m in range(instancia.maquinas):
                 if m == maquina_gargalo: continue
 
                 for pos in range(len(sol_atual[m]) + 1):
-                    # simula a remoção
-                    seq_gargalo_temp = copy.copy(sol_atual[maquina_gargalo])
-                    seq_gargalo_temp.pop(i)
-                    tempo_gargalo_novo = calcular_tempo_maquina(seq_gargalo_temp, maquina_gargalo, instancia)
+                    delta_ins = calcular_delta_insercao(job, m, pos, sol_atual[m], instancia)
 
-                    # simula inserção
-                    seq_m_temp = copy.copy(sol_atual[m])
-                    seq_m_temp.insert(pos, job)
-                    tempo_m_novo = calcular_tempo_maquina(seq_m_temp, m, instancia)
-
-                    # verifica novo makespan
                     tempos_temp = tempos.copy()
-                    tempos_temp[maquina_gargalo] = tempo_gargalo_novo
-                    tempos_temp[m] = tempo_m_novo
+                    tempos_temp[maquina_gargalo] += delta_rem
+                    tempos_temp[m] += delta_ins
+
                     mk_viz = np.max(tempos_temp)
 
                     if mk_viz < mk_atual:
-                        sol_atual[maquina_gargalo] = seq_gargalo_temp
-                        sol_atual[m] = seq_m_temp
+                        # efetiva a alteração
+                        sol_atual[maquina_gargalo].pop(i)
+                        sol_atual[m].insert(pos, job)
                         tempos = tempos_temp
                         mk_atual = mk_viz
                         melhorou = True
@@ -129,67 +168,75 @@ def busca_local_avancada(solucao, instancia: UPMSPInstance):
 
 
 def path_relinking(xs, xt, instancia: UPMSPInstance):
-    """
-    Movimento: Mover um job que está no lugar 'errado' para sua máquina destino.
-    """
-    delta = []
-    for j in range(instancia.jobs):
-        m_s = obter_maquina_do_job(xs, j)
-        m_t = obter_maquina_do_job(xt, j)
-        if m_s != m_t:
-            delta.append((j, m_t))
+    mapa_s = criar_mapa_jobs(xs, instancia.jobs)
+    mapa_t = criar_mapa_jobs(xt, instancia.jobs)
 
-    melhor_sol_pr = copy.deepcopy(xs)
-    melhor_mk_pr = calcular_makespan(xs, instancia)
-    x_atual = copy.deepcopy(xs)
+    delta = [(j, mapa_t[j]) for j in range(instancia.jobs) if mapa_s[j] != mapa_t[j]]
+
+    melhor_sol_pr = [lista[:] for lista in xs]
+    x_atual = [lista[:] for lista in xs]
+
+    tempos_atuais = calcular_tempos_maquinas(x_atual, instancia)
+    melhor_mk_pr = np.max(tempos_atuais)
 
     while len(delta) > 0:
         melhor_movimento = None
         melhor_mk_vizinho = float('inf')
-        melhor_vizinho = None
+        melhor_tempos_viz = None
+        melhor_detalhes = None
 
         for (j, m_t) in delta:
-            m_atual = obter_maquina_do_job(x_atual, j)
-            x_temp = copy.deepcopy(x_atual)
-            x_temp[m_atual].remove(j)
+            m_s = mapa_s[j]
+            pos_j = x_atual[m_s].index(j)
 
-            for pos in range(len(x_temp[m_t]) + 1):
-                x_viz = copy.deepcopy(x_temp)
-                x_viz[m_t].insert(pos, j)
-                mk_viz = calcular_makespan(x_viz, instancia)
+            delta_rem = calcular_delta_remocao(pos_j, x_atual[m_s], m_s, instancia)
+
+            for pos in range(len(x_atual[m_t]) + 1):
+                delta_ins = calcular_delta_insercao(j, m_t, pos, x_atual[m_t], instancia)
+
+                tempos_sim = tempos_atuais.copy()
+                tempos_sim[m_s] += delta_rem
+                tempos_sim[m_t] += delta_ins
+
+                mk_viz = np.max(tempos_sim)
 
                 if mk_viz < melhor_mk_vizinho:
                     melhor_mk_vizinho = mk_viz
-                    melhor_vizinho = x_viz
                     melhor_movimento = (j, m_t)
+                    melhor_detalhes = (m_s, pos_j, pos)
+                    melhor_tempos_viz = tempos_sim
 
-        x_atual = copy.deepcopy(melhor_vizinho)
+        # efetiva o melhor movimento da iteracao
+        j, m_t = melhor_movimento
+        m_s, pos_j, pos_ins = melhor_detalhes
+
+        x_atual[m_s].pop(pos_j)
+        x_atual[m_t].insert(pos_ins, j)
+        tempos_atuais = melhor_tempos_viz
+        mapa_s[j] = m_t
+
         delta.remove(melhor_movimento)
 
         if melhor_mk_vizinho < melhor_mk_pr:
             melhor_mk_pr = melhor_mk_vizinho
-            melhor_sol_pr = copy.deepcopy(x_atual)
+            melhor_sol_pr = [lista[:] for lista in x_atual]
 
     return melhor_sol_pr
 
 
 def calcular_distancia(sol1, sol2, jobs_totais):
     """Retorna o percentual de jobs que estão alocados em máquinas diferentes."""
-    jobs_diferentes = 0
-    for j in range(jobs_totais):
-        m1 = obter_maquina_do_job(sol1, j)
-        m2 = obter_maquina_do_job(sol2, j)
-        if m1 != m2:
-            jobs_diferentes += 1
+    mapa1 = criar_mapa_jobs(sol1, jobs_totais)
+    mapa2 = criar_mapa_jobs(sol2, jobs_totais)
+    jobs_diferentes = np.sum(mapa1 != mapa2)
     return jobs_diferentes / jobs_totais
 
 
 def atualizar_pool(pool, solucao, makespan, instancia: UPMSPInstance, max_elite=10, min_diff=0.1):
     """
-    min_diff = 0.1 significa que a solução precisa ter pelo menos 10%
-    dos jobs em máquinas diferentes das soluções que já estão no pool.
+       min_diff = 0.1 significa que a solução precisa ter pelo menos 10%
+       dos jobs em máquinas diferentes das soluções que já estão no pool.
     """
-    # verifica se a solução é estruturalmente diferente de TODAS no pool
     for sol_p, mk_p in pool:
         diff = calcular_distancia(solucao, sol_p, instancia.jobs)
         if diff < min_diff:
@@ -205,14 +252,11 @@ def atualizar_pool(pool, solucao, makespan, instancia: UPMSPInstance, max_elite=
 
 
 def grasp_path_relinking(instancia: UPMSPInstance, max_iter=50, alpha=0.3, max_elite=10):
-    pool = []  # pool inicia vazio
+    pool = []
     best_sol = None
     best_makespan = float('inf')
 
     for i in range(1, max_iter + 1):
-        print(f"Iteração GRASP {i}/{max_iter}...")
-
-        # construcao gulosa e busca local
         x = construcao_gulosa(instancia, alpha)
         x = busca_local_avancada(x, instancia)
         mk_x = calcular_makespan(x, instancia)
@@ -227,13 +271,11 @@ def grasp_path_relinking(instancia: UPMSPInstance, max_iter=50, alpha=0.3, max_e
 
             if mk_xp < best_makespan:
                 best_makespan = mk_xp
-                best_sol = copy.deepcopy(xp)
-                print(f"  -> Novo Melhor (pós-PR): {best_makespan:.2f}")
+                best_sol = [lista[:] for lista in xp]
         else:
             atualizar_pool(pool, x, mk_x, instancia, max_elite)
             if mk_x < best_makespan:
                 best_makespan = mk_x
-                best_sol = copy.deepcopy(x)
-                print(f"  -> Novo Melhor: {best_makespan:.2f}")
+                best_sol = [lista[:] for lista in x]
 
     return best_sol, best_makespan
