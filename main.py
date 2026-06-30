@@ -2,7 +2,6 @@ import csv
 import os
 import numpy as np
 
-# Certifique-se de que os nomes importados batem com os nomes das funções no seu arquivo 'graficos_pmsp.py'
 from graficos_pmsp import (
     gerar_grafico_limites_vs_resultados,
     gerar_grafico_barras_runtime,
@@ -61,45 +60,38 @@ if __name__ == "__main__":
     print("INICIANDO ANÁLISE DE DADOS E TESTES ESTATÍSTICOS")
     print("=" * 60)
 
-    # 1. LER OS ARQUIVOS
     exatos = ler_resultados_exatos("resultados_cp_sat.txt")
     sa_dados = ler_resultados_metaheuristica("sa_resumo_estatistico.csv")
     grasp_dados = ler_resultados_metaheuristica("grasp_resumo_estatistico.csv")
 
-    # 2. CRUZAR OS DADOS E CALCULAR GAPS
     instancias_comuns = []
     gaps_sa, gaps_grasp = [], []
     tempos_sa, tempos_grasp = [], []
 
-    # Listas adicionais para o gráfico de Limites vs Resultados
     lb_lista, ub_lista = [], []
     best_sa_lista, avg_sa_lista, worst_sa_lista = [], [], []
     best_grasp_lista, avg_grasp_lista, worst_grasp_lista = [], [], []
 
     for inst in sa_dados.keys():
-        # Verifica se a instância existe nos 3 arquivos e se o CP-SAT achou o gabarito (LB > 0)
         if inst in grasp_dados and inst in exatos and exatos[inst]['LB'] > 0:
             lb_exato = exatos[inst]['LB']
             ub_exato = exatos[inst]['UB']
 
-            # SA
+            #SA
             best_sa = sa_dados[inst]['Best']
             avg_sa = sa_dados[inst]['Average']
             worst_sa = sa_dados[inst]['Worst']
             tempo_sa = sa_dados[inst]['Tempo_Medio']
 
-            # GRASP
+            #GRASP
             best_grasp = grasp_dados[inst]['Best']
             avg_grasp = grasp_dados[inst]['Average']
             worst_grasp = grasp_dados[inst]['Worst']
             tempo_grasp = grasp_dados[inst]['Tempo_Medio']
 
-            # Cálculo do Gap % em relação ao UB (ou LB, dependendo da sua preferência)
-            # Vamos calcular em relação ao UB para o teste de Wilcoxon / Intervalo de Confiança
             gap_sa = ((best_sa - ub_exato) / ub_exato) * 100
             gap_grasp = ((best_grasp - ub_exato) / ub_exato) * 100
 
-            # Preenchimento das listas
             instancias_comuns.append(inst)
             lb_lista.append(lb_exato)
             ub_lista.append(ub_exato)
@@ -123,10 +115,9 @@ if __name__ == "__main__":
 
     print(f"Foram cruzados dados de {len(instancias_comuns)} instâncias.\n")
 
-    # Limitador para gráficos de barras/pontos para não poluir visualmente (opcional)
+    #limitador para gráficos de barras/pontos para não poluir visualmente
     limite = min(15, len(instancias_comuns))
 
-    # 3. GERAR GRÁFICOS
     print("Gerando Gráfico de Limites vs Resultados (SA)...")
     gerar_grafico_limites_vs_resultados(
         instancias_comuns[:limite], lb_lista[:limite], ub_lista[:limite],
@@ -152,7 +143,6 @@ if __name__ == "__main__":
     print("Gerando Intervalo de Confiança Agrupado...")
     gerar_ic_por_tamanho(instancias_comuns, gaps_sa, gaps_grasp, "Simulated Annealing", "GRASP-PR")
 
-    # 4. TESTE DE HIPÓTESE
     print("Rodando Teste de Wilcoxon...")
     comparar_duas_metaheuristicas(gaps_sa, gaps_grasp, "Simulated Annealing", "GRASP-PR")
 
